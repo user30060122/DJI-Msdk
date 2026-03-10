@@ -1,0 +1,346 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#F5F5F5">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="航点飞行任务"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:gravity="center"
+            android:layout_marginTop="20dp"
+            android:paddingBottom="16dp"/>
+
+        <!-- Current Location Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="飞机实时位置"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tv_current_location"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="未获取"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- End Point Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="终点（飞机GPS）"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tv_end_point"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="未设置"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_set_end_point"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="获取飞机当前位置"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Start Point Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="起点（飞机GPS）"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tv_start_point"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="未设置"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btn_set_start_point"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="获取飞机当前位置"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Flight Parameters Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="飞行参数"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:paddingBottom="8dp"/>
+
+                <!-- Altitude Slider -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="飞行高度 (米)"
+                    android:textSize="14sp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <SeekBar
+                        android:id="@+id/seekbar_altitude"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="45"
+                        android:progress="5"/>
+
+                    <TextView
+                        android:id="@+id/tv_altitude_value"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="10 m"
+                        android:textSize="14sp"
+                        android:gravity="end"/>
+                </LinearLayout>
+
+                <!-- Stay Duration Slider -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="停留时间 (秒)"
+                    android:textSize="14sp"
+                    android:paddingTop="16dp"/>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <SeekBar
+                        android:id="@+id/seekbar_duration"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:max="60"
+                        android:progress="5"/>
+
+                    <TextView
+                        android:id="@+id/tv_duration_value"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="5 s"
+                        android:textSize="14sp"
+                        android:gravity="end"/>
+                </LinearLayout>
+
+                <!-- Flight Speed Input -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="飞行速度 (米/秒)"
+                    android:textSize="14sp"
+                    android:paddingTop="16dp"/>
+
+                <EditText
+                    android:id="@+id/et_flight_speed"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal"
+                    android:text="2.0"
+                    android:hint="输入飞行速度 (0.1-15 m/s)"
+                    android:textSize="14sp"
+                    android:padding="8dp"
+                    android:background="@android:drawable/edit_text"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Mission Status Card -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="任务状态"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/tv_mission_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="待命"
+                    android:textSize="14sp"
+                    android:paddingTop="8dp"
+                    android:textColor="#4CAF50"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Control Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btn_start_mission"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="开始任务"
+                android:backgroundTint="#4CAF50"/>
+
+            <Button
+                android:id="@+id/btn_next_step"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="8dp"
+                android:text="下一步"
+                android:enabled="false"
+                android:backgroundTint="#2196F3"/>
+
+            <Button
+                android:id="@+id/btn_stop_mission"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="停止任务"
+                android:backgroundTint="#F44336"/>
+        </LinearLayout>
+
+        <!-- 实时图传画面 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="200dp"
+            android:layout_marginTop="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp">
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <dji.v5.ux.core.widget.fpv.FPVWidget
+                    android:id="@+id/fpv_widget"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"/>
+
+                <!-- 摄像头切换按钮 -->
+                <Button
+                    android:id="@+id/btn_switch_camera"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="top|end"
+                    android:layout_margin="8dp"
+                    android:text="切换摄像头"
+                    android:textSize="12sp"
+                    android:padding="8dp"
+                    android:backgroundTint="#80000000"
+                    android:textColor="#FFFFFF"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="点击放大查看"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:background="#80000000"
+                    android:padding="8dp"/>
+            </FrameLayout>
+        </androidx.cardview.widget.CardView>
+
+    </LinearLayout>
+</ScrollView>
