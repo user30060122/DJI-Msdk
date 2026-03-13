@@ -463,6 +463,33 @@ class WaypointFlightVM : ViewModel() {
         while (attempts < maxAttempts) {
             delay(1000)
 
+            // 检查是否需要降落确认
+            val needConfirm = suspendCancellableCoroutine<Boolean> { continuation ->
+                KeyManager.getInstance().getValue(
+                    KeyTools.createKey(FlightControllerKey.KeyIsLandingConfirmationNeeded),
+                    object : CommonCallbacks.CompletionCallbackWithParam<Boolean> {
+                        override fun onSuccess(v: Boolean?) { continuation.resume(v ?: false) }
+                        override fun onFailure(error: IDJIError) { continuation.resume(false) }
+                    }
+                )
+            }
+
+            // 如果需要确认，调用确认降落
+            if (needConfirm) {
+                missionStatus.postValue("检测到降落确认请求，正在确认...")
+                KeyManager.getInstance().performAction(
+                    KeyTools.createKey(FlightControllerKey.KeyConfirmLanding),
+                    object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
+                        override fun onSuccess(t: EmptyMsg?) {
+                            missionStatus.postValue("降落确认成功，继续降落")
+                        }
+                        override fun onFailure(error: IDJIError) {
+                            missionStatus.postValue("降落确认失败: $error")
+                        }
+                    }
+                )
+            }
+
             val areMotorsOn = suspendCancellableCoroutine<Boolean> { continuation ->
                 KeyManager.getInstance().getValue(
                     KeyTools.createKey(FlightControllerKey.KeyAreMotorsOn),

@@ -94,3 +94,8 @@ android-sdk-v5-ivt/tools/results/
 
 .idea/
 .userinfo
+
+# Docs and IDE settings
+Docs/
+.claude/
+.vscode/
