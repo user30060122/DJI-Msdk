@@ -61,6 +61,14 @@ class WaypointFlightVM : ViewModel() {
         startPoint.value = GPSPoint(location.latitude, location.longitude, location.altitude)
     }
 
+    fun setStartPointFromCoords(lat: Double, lng: Double) {
+        startPoint.value = GPSPoint(lat, lng, 0.0)
+    }
+
+    fun setEndPointFromCoords(lat: Double, lng: Double) {
+        endPoint.value = GPSPoint(lat, lng, 0.0)
+    }
+
     fun setStartPointFromAircraft() {
         viewModelScope.launch {
             var retryCount = 0

@@ -10,14 +10,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.*
 import dji.sampleV5.aircraft.databinding.ActivityWaypointFlightBinding
 import dji.sampleV5.aircraft.models.BasicAircraftControlVM
 import dji.sampleV5.aircraft.models.WaypointFlightVM
+import dji.sampleV5.aircraft.util.MqttManager
 import dji.sampleV5.aircraft.util.ToastUtils
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.manager.datacenter.MediaDataCenter
 import dji.v5.manager.interfaces.ICameraStreamManager
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class WaypointFlightActivity : AppCompatActivity() {
 
@@ -28,6 +33,9 @@ class WaypointFlightActivity : AppCompatActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private var currentLocation: Location? = null
+
+    // MQTT状态上报
+    private var statusReportJob: Job? = null
 
     // 摄像头管理
     private var availableCameras = mutableListOf<ComponentIndexType>()
@@ -110,6 +118,72 @@ class WaypointFlightActivity : AppCompatActivity() {
 
         // 开始实时更新飞机GPS位置
         waypointVM.startAircraftLocationUpdates()
+
+        // 初始化MQTT
+        initMqtt()
+    }
+
+    private fun initMqtt() {
+        MqttManager.init(this)
+
+        // 接收电脑端指令
+        MqttManager.onCommandReceived = { action, data ->
+            runOnUiThread {
+                when (action) {
+                    "start_mission" -> {
+                        val startLat = data.optDouble("start_lat")
+                        val startLng = data.optDouble("start_lng")
+                        val endLat = data.optDouble("end_lat")
+                        val endLng = data.optDouble("end_lng")
+                        val altitude = data.optDouble("altitude", 10.0)
+                        val speed = data.optDouble("speed", 2.0)
+                        val stayDuration = data.optInt("stay_duration", 5)
+                        val mode = data.optString("mode", "auto")
+
+                        waypointVM.setStartPointFromCoords(startLat, startLng)
+                        waypointVM.setEndPointFromCoords(endLat, endLng)
+                        waypointVM.flightAltitude.value = altitude
+                        waypointVM.flightSpeed.value = speed
+                        waypointVM.stayDuration.value = stayDuration
+
+                        waypointVM.startMission(
+                            autoMode = (mode == "auto"),
+                            takeOffCallback = { cb -> aircraftControlVM.startTakeOff(cb) },
+                            landingCallback = { cb -> aircraftControlVM.startLanding(cb) }
+                        )
+                        ToastUtils.showToast("收到远程指令，开始执行任务")
+                    }
+                    "stop_mission" -> {
+                        waypointVM.stopMission()
+                        ToastUtils.showToast("收到远程停止指令")
+                    }
+                }
+            }
+        }
+
+        // 连接状态变化
+        MqttManager.onConnectionChanged = { connected ->
+            runOnUiThread {
+                ToastUtils.showToast(if (connected) "MQTT已连接 ID:${MqttManager.droneId}" else "MQTT断开连接")
+            }
+        }
+
+        // 每2秒上报一次飞机状态
+        statusReportJob = lifecycleScope.launch {
+            while (true) {
+                delay(2000)
+                val loc = waypointVM.currentLocation.value
+                val status = waypointVM.missionStatus.value ?: "待命"
+                val isFlying = waypointVM.isFlying.value ?: false
+                MqttManager.publishStatus(
+                    lat = loc?.latitude ?: 0.0,
+                    lng = loc?.longitude ?: 0.0,
+                    altitude = loc?.altitude ?: 0.0,
+                    missionStatus = status,
+                    isFlying = isFlying
+                )
+            }
+        }
     }
 
     private fun initLocationServices() {
@@ -336,6 +410,8 @@ class WaypointFlightActivity : AppCompatActivity() {
         super.onDestroy()
         waypointVM.stopMission()
         waypointVM.stopAircraftLocationUpdates()
+        statusReportJob?.cancel()
+        MqttManager.disconnect()
         MediaDataCenter.getInstance().cameraStreamManager.removeAvailableCameraUpdatedListener(availableCameraUpdatedListener)
     }
 }
