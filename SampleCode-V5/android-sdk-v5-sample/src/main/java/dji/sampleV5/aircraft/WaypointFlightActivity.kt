@@ -1,6 +1,9 @@
 package dji.sampleV5.aircraft
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
@@ -206,10 +209,32 @@ class WaypointFlightActivity : AppCompatActivity() {
             ToastUtils.showToast("正在获取飞机位置作为起点...")
         }
 
+        // Copy Start Point Button
+        binding.btnCopyStartPoint.setOnClickListener {
+            val point = waypointVM.startPoint.value
+            if (point != null) {
+                val text = "${point.latitude},${point.longitude}"
+                copyToClipboard(text, "起点坐标")
+            } else {
+                ToastUtils.showToast("起点未设置")
+            }
+        }
+
         // Set End Point Button - 使用飞机GPS
         binding.btnSetEndPoint.setOnClickListener {
             waypointVM.setEndPointFromAircraft()
             ToastUtils.showToast("正在获取飞机位置作为终点...")
+        }
+
+        // Copy End Point Button
+        binding.btnCopyEndPoint.setOnClickListener {
+            val point = waypointVM.endPoint.value
+            if (point != null) {
+                val text = "${point.latitude},${point.longitude}"
+                copyToClipboard(text, "终点坐标")
+            } else {
+                ToastUtils.showToast("终点未设置")
+            }
         }
 
         // Altitude SeekBar
@@ -321,6 +346,24 @@ class WaypointFlightActivity : AppCompatActivity() {
         waypointVM.canProceed.observe(this) { canProceed ->
             binding.btnNextStep.isEnabled = canProceed
         }
+
+        // 监听高度变化（来自MQTT远程命令）
+        waypointVM.flightAltitude.observe(this) { altitude ->
+            val progress = (altitude - 5.0).toInt().coerceIn(0, 45)
+            binding.seekbarAltitude.progress = progress
+            binding.tvAltitudeValue.text = "$altitude m"
+        }
+
+        // 监听速度变化（来自MQTT远程命令）
+        waypointVM.flightSpeed.observe(this) { speed ->
+            binding.etFlightSpeed.setText(speed.toString())
+        }
+
+        // 监听停留时间变化（来自MQTT远程命令）
+        waypointVM.stayDuration.observe(this) { duration ->
+            binding.seekbarDuration.progress = duration
+            binding.tvDurationValue.text = "$duration s"
+        }
     }
 
     private fun checkLocationPermission() {
@@ -413,5 +456,12 @@ class WaypointFlightActivity : AppCompatActivity() {
         statusReportJob?.cancel()
         MqttManager.disconnect()
         MediaDataCenter.getInstance().cameraStreamManager.removeAvailableCameraUpdatedListener(availableCameraUpdatedListener)
+    }
+
+    private fun copyToClipboard(text: String, label: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText(label, text)
+        clipboard.setPrimaryClip(clip)
+        ToastUtils.showToast("已复制$label: $text")
     }
 }

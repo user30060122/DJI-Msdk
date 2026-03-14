@@ -83,11 +83,25 @@
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"/>
 
-                <Button
-                    android:id="@+id/btn_set_end_point"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="获取飞机当前位置"/>
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_set_end_point"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="获取飞机当前位置"/>
+
+                    <Button
+                        android:id="@+id/btn_copy_end_point"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="📋 复制"/>
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -121,11 +135,25 @@
                     android:paddingTop="8dp"
                     android:paddingBottom="8dp"/>
 
-                <Button
-                    android:id="@+id/btn_set_start_point"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="获取飞机当前位置"/>
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btn_set_start_point"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="获取飞机当前位置"/>
+
+                    <Button
+                        android:id="@+id/btn_copy_start_point"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="📋 复制"/>
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 

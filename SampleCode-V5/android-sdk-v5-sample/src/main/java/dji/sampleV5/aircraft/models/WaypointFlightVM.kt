@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dji.sdk.keyvalue.key.FlightControllerKey
+import dji.sdk.keyvalue.key.FlightAssistantKey
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.value.common.EmptyMsg
 import dji.sdk.keyvalue.value.common.LocationCoordinate2D
@@ -457,6 +458,25 @@ class WaypointFlightVM : ViewModel() {
     }
 
     private suspend fun land(callback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit) {
+        // 关闭降落保护，确保能降到地面
+        missionStatus.postValue("准备降落：关闭降落保护...")
+
+        KeyManager.getInstance().setValue(
+            KeyTools.createKey(FlightAssistantKey.KeyLandingProtectionEnabled),
+            false,
+            object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() {
+                    missionStatus.postValue("降落保护已关闭")
+                }
+                override fun onFailure(error: IDJIError) {
+                    missionStatus.postValue("关闭降落保护失败: $error")
+                }
+            }
+        )
+
+        delay(500)
+
+        // 开始降落
         callback(object : CommonCallbacks.CompletionCallbackWithParam<EmptyMsg> {
             override fun onSuccess(t: EmptyMsg?) {}
             override fun onFailure(error: IDJIError) {

@@ -64,8 +64,20 @@ class DroneControlApp:
         for col, w in zip(cols, widths):
             self.tree.heading(col, text=col)
             self.tree.column(col, width=w, anchor=tk.CENTER)
-        self.tree.pack(fill=tk.BOTH, expand=True)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
+
+        # 飞机详情面板
+        detail_frame = tk.LabelFrame(list_frame, text=" 飞机详情 ", bg="#1e1e2e",
+                                      fg="#cdd6f4", font=("微软雅黑", 10), width=280)
+        detail_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 0))
+        detail_frame.pack_propagate(False)
+
+        self.detail_text = tk.Text(detail_frame, bg="#181825", fg="#cdd6f4",
+                                    font=("Consolas", 9), wrap=tk.WORD, relief=tk.FLAT)
+        self.detail_text.pack(fill=tk.BOTH, expand=True, padx=4, pady=4)
+        self.detail_text.insert("1.0", "点击左侧飞机查看详情")
+        self.detail_text.config(state=tk.DISABLED)
 
         # 指令面板
         cmd_frame = tk.LabelFrame(self.root, text=" 发送任务指令 ", bg="#1e1e2e",
@@ -385,7 +397,56 @@ class DroneControlApp:
     def _on_select(self, event):
         sel = self.tree.selection()
         if sel:
-            self.selected_drone.set(sel[0])
+            drone_id = sel[0]
+            self.selected_drone.set(drone_id)
+            self._update_detail_panel(drone_id)
+
+    def _update_detail_panel(self, drone_id):
+        """更新飞机详情面板"""
+        self.detail_text.config(state=tk.NORMAL)
+        self.detail_text.delete("1.0", tk.END)
+
+        if drone_id not in self.drones:
+            self.detail_text.insert("1.0", f"飞机 {drone_id} 离线")
+            self.detail_text.config(state=tk.DISABLED)
+            return
+
+        d = self.drones[drone_id]
+        mission = self.missions.get(drone_id)
+        deps = self.dependencies.get(drone_id, [])
+
+        info = f"""╔═══════════════════════════╗
+║  飞机ID: {drone_id}
+╚═══════════════════════════╝
+
+【实时状态】
+  状态: {'🟢 飞行中' if d['is_flying'] else '⚪ 待命'}
+  纬度: {d['lat']:.6f}
+  经度: {d['lng']:.6f}
+  高度: {d['altitude']:.1f} m
+  任务: {d['mission_status']}
+  更新: {d['last_seen']}
+
+【预设任务】"""
+
+        if mission:
+            info += f"""
+  起点: ({mission['start_lat']:.6f}, {mission['start_lng']:.6f})
+  终点: ({mission['end_lat']:.6f}, {mission['end_lng']:.6f})
+  高度: {mission['altitude']} m
+  速度: {mission['speed']} m/s
+  停留: {mission['stay_duration']} 秒"""
+        else:
+            info += "\n  ❌ 未设置"
+
+        info += "\n\n【执行依赖】\n"
+        if deps:
+            info += "  等待: " + ", ".join(deps)
+        else:
+            info += "  无依赖，可立即执行"
+
+        self.detail_text.insert("1.0", info)
+        self.detail_text.config(state=tk.DISABLED)
 
     # ── Bmob存储 ───────────────────────────────────────
     def _save_to_bmob(self, drone_id, data):
