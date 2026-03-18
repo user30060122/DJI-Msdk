@@ -51,6 +51,11 @@ object MqttManager {
                     override fun connectionLost(cause: Throwable?) {
                         Log.w(TAG, "MQTT连接断开: ${cause?.message}")
                         onConnectionChanged?.invoke(false)
+                        // 自动重连
+                        executor.execute {
+                            Thread.sleep(2000)
+                            reconnect()
+                        }
                     }
 
                     override fun messageArrived(topic: String, message: MqttMessage) {
@@ -81,6 +86,24 @@ object MqttManager {
         } catch (e: Exception) {
             Log.e(TAG, "解析指令失败: $payload")
         }
+    }
+
+    fun isConnected(): Boolean {
+        return client?.isConnected == true
+    }
+
+    fun reconnect() {
+        if (isConnected()) {
+            Log.i(TAG, "MQTT已连接，无需重连")
+            return
+        }
+        Log.i(TAG, "尝试重连MQTT...")
+        try {
+            client?.disconnect()
+        } catch (e: Exception) {
+            // 忽略断开错误
+        }
+        connect()
     }
 
     fun publishStatus(

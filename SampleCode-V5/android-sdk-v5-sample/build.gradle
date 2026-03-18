@@ -10,8 +10,8 @@ android {
         applicationId "com.dji.DjiGround"
         minSdkVersion Integer.parseInt(project.ANDROID_MIN_SDK_VERSION)
         targetSdkVersion Integer.parseInt(project.ANDROID_TARGET_SDK_VERSION)
-        versionCode 10
-        versionName "2.3.1"
+        versionCode 12
+        versionName "2.4.0"
         //2.0.0->2.1.0:解决了起飞降落时飞机异常抖动的问题,优化了降落的逻辑保证夜晚也可以正常降落
         //2.1.0->2.1.1:增加了蒲公英的版本控制
         //2.1.1->2.2.0:修改了飞机实时位置还用手机定位的问题
@@ -20,6 +20,8 @@ android {
         //2.2.2->2.2.3:按大疆官方回复监听KeyIsLandingConfirmationNeeded确认降落
         //2.2.3->2.3.0:加入MQTT协议,实现电脑一对多的控制
         //2.3.0->2.3.1:手机端可复制经纬度
+        //2.3.1->2.3.2:与电脑端同步显示
+        //2.3.2->2.4.0:加入MQTT防断连保护,加入飞机状态检测,如未执行继续发送指令
         manifestPlaceholders["API_KEY"] = project.AIRCRAFT_API_KEY
         manifestPlaceholders["GMAP_API_KEY"] = project.GMAP_API_KEY
         manifestPlaceholders["MAPLIBRE_TOKEN"] = project.MAPLIBRE_TOKEN

@@ -39,6 +39,7 @@ class WaypointFlightActivity : AppCompatActivity() {
 
     // MQTT状态上报
     private var statusReportJob: Job? = null
+    private var mqttHeartbeatJob: Job? = null
 
     // 摄像头管理
     private var availableCameras = mutableListOf<ComponentIndexType>()
@@ -129,9 +130,21 @@ class WaypointFlightActivity : AppCompatActivity() {
     private fun initMqtt() {
         MqttManager.init(this)
 
+        // 监听连接状态
+        MqttManager.onConnectionChanged = { connected ->
+            runOnUiThread {
+                if (connected) {
+                    ToastUtils.showToast("MQTT已连接 ID:${MqttManager.droneId}")
+                } else {
+                    ToastUtils.showToast("MQTT连接断开")
+                }
+            }
+        }
+
         // 接收电脑端指令
         MqttManager.onCommandReceived = { action, data ->
             runOnUiThread {
+                ToastUtils.showToast("收到指令: $action")
                 when (action) {
                     "start_mission" -> {
                         val startLat = data.optDouble("start_lat")
@@ -185,6 +198,17 @@ class WaypointFlightActivity : AppCompatActivity() {
                     missionStatus = status,
                     isFlying = isFlying
                 )
+            }
+        }
+
+        // MQTT心跳检测，每2秒检查一次连接状态
+        mqttHeartbeatJob = lifecycleScope.launch {
+            while (true) {
+                delay(2000)
+                if (!MqttManager.isConnected()) {
+                    ToastUtils.showToast("MQTT断开，正在重连...")
+                    MqttManager.reconnect()
+                }
             }
         }
     }
@@ -442,6 +466,10 @@ class WaypointFlightActivity : AppCompatActivity() {
         ) {
             startLocationUpdates()
         }
+        // 检查MQTT连接状态，断开则重连
+        if (!MqttManager.isConnected()) {
+            MqttManager.reconnect()
+        }
     }
 
     override fun onPause() {
@@ -454,6 +482,7 @@ class WaypointFlightActivity : AppCompatActivity() {
         waypointVM.stopMission()
         waypointVM.stopAircraftLocationUpdates()
         statusReportJob?.cancel()
+        mqttHeartbeatJob?.cancel()
         MqttManager.disconnect()
         MediaDataCenter.getInstance().cameraStreamManager.removeAvailableCameraUpdatedListener(availableCameraUpdatedListener)
     }

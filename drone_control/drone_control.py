@@ -29,11 +29,13 @@ class DroneControlApp:
         self.missions = {}     # drone_id -> 任务参数dict
         self.dependencies = {} # drone_id -> [依赖的drone_id列表]
         self.completed = set() # 已完成任务的drone_id集合
+        self.pending_commands = {} # drone_id -> {"time": 时间戳, "retry": 重试次数, "last_status": 上次状态}
         self.mqtt_client = None
         self.connected = False
 
         self._build_ui()
         self._connect_mqtt()
+        self._start_retry_monitor()
 
     # ── UI ────────────────────────────────────────────
     def _build_ui(self):
@@ -122,7 +124,7 @@ class DroneControlApp:
         self.lbl_selected.pack(side=tk.LEFT)
 
         row3 = ttk.Frame(cmd_frame)
-        row3.pack(fill=tk.X, padx=8, pady=(4, 8))
+        row3.pack(fill=tk.X, padx=8, pady=(4, 4))
         tk.Button(row3, text="💾 设置任务", bg="#f9e2af", fg="#1e1e2e",
                   font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=16,
                   command=self._save_mission).pack(side=tk.LEFT, padx=4)
@@ -138,6 +140,15 @@ class DroneControlApp:
         tk.Button(row3, text="🚀 自动编排", bg="#89b4fa", fg="#1e1e2e",
                   font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=16,
                   command=self._auto_execute).pack(side=tk.LEFT, padx=4)
+
+        row4 = ttk.Frame(cmd_frame)
+        row4.pack(fill=tk.X, padx=8, pady=(4, 8))
+        tk.Button(row4, text="📂 加载配置", bg="#fab387", fg="#1e1e2e",
+                  font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=16,
+                  command=self._load_config).pack(side=tk.LEFT, padx=4)
+        tk.Button(row4, text="💾 保存配置", bg="#94e2d5", fg="#1e1e2e",
+                  font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=16,
+                  command=self._save_config).pack(side=tk.LEFT, padx=4)
 
         # 日志
         log_frame = ttk.Frame(self.root)
@@ -162,6 +173,33 @@ class DroneControlApp:
 
         threading.Thread(target=_connect, daemon=True).start()
 
+    def _start_retry_monitor(self):
+        """启动指令重试监控线程"""
+        def monitor():
+            while True:
+                time.sleep(8)  # 每8秒检查一次
+                current_time = time.time()
+                retry_list = []
+
+                for drone_id, info in list(self.pending_commands.items()):
+                    elapsed = current_time - info["time"]
+                    if elapsed > 8:  # 8秒内没反应
+                        retry_list.append(drone_id)
+
+                for drone_id in retry_list:
+                    info = self.pending_commands[drone_id]
+                    if info["retry"] < 3:  # 最多重试3次
+                        info["retry"] += 1
+                        info["time"] = current_time
+                        self._log(f"[重试] {drone_id} 无响应，第{info['retry']}次重发指令")
+                        if drone_id in self.missions:
+                            self._publish_mission(drone_id, self.missions[drone_id])
+                    else:
+                        self._log(f"[失败] {drone_id} 重试3次仍无响应，放弃")
+                        del self.pending_commands[drone_id]
+
+        threading.Thread(target=monitor, daemon=True).start()
+
     def _on_mqtt_connect(self, client, userdata, flags, rc):
         if rc == 0:
             self.connected = True
@@ -181,22 +219,31 @@ class DroneControlApp:
         try:
             data = json.loads(msg.payload.decode())
             drone_id = data.get("drone_id", "unknown")
+            status = data.get("mission_status", "")
+
             self.drones[drone_id] = {
                 "lat": data.get("lat", 0),
                 "lng": data.get("lng", 0),
                 "altitude": data.get("altitude", 0),
-                "mission_status": data.get("mission_status", ""),
+                "mission_status": status,
                 "is_flying": data.get("is_flying", False),
                 "last_seen": time.strftime("%H:%M:%S"),
             }
             self.root.after(0, self._refresh_table)
             self._save_to_bmob(drone_id, data)
 
+            # 检查待确认指令：如果状态变化了，说明指令已送达
+            if drone_id in self.pending_commands:
+                last_status = self.pending_commands[drone_id]["last_status"]
+                if status != last_status and status not in ["待命", "电机停止"]:
+                    self._log(f"[确认] {drone_id} 指令已送达，状态: {status}")
+                    del self.pending_commands[drone_id]
+
             # 检测任务完成，触发依赖的飞机
-            status = data.get("mission_status", "")
-            if "任务完成" in status and drone_id not in self.completed:
+            if ("任务完成" in status or "降落完成" in status) and drone_id not in self.completed:
                 self.completed.add(drone_id)
-                self._log(f"[编排] {drone_id} 任务完成")
+                self._log(f"[编排] ✓ {drone_id} 任务完成")
+                self._log(f"[编排] 当前已完成: {list(self.completed)}")
                 self._check_and_trigger_dependents(drone_id)
         except Exception as e:
             self._log(f"解析状态失败: {e}")
@@ -328,7 +375,65 @@ class DroneControlApp:
 
         self._log("自动编排已启动，将根据任务完成情况自动触发后续飞机")
 
+    def _load_config(self):
+        """从missions.json加载配置"""
+        try:
+            with open("missions.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            # 加载任务
+            for m in config.get("missions", []):
+                drone_id = m["drone_id"]
+                self.missions[drone_id] = {
+                    "start_lat": m["start_lat"],
+                    "start_lng": m["start_lng"],
+                    "end_lat": m["end_lat"],
+                    "end_lng": m["end_lng"],
+                    "altitude": m["altitude"],
+                    "speed": m["speed"],
+                    "stay_duration": m["stay_duration"],
+                }
+
+            # 加载依赖关系
+            self.dependencies = config.get("dependencies", {})
+
+            self._refresh_table()
+            self._log(f"已加载 {len(self.missions)} 架飞机的任务配置")
+            messagebox.showinfo("成功", f"已加载 {len(self.missions)} 架飞机的任务\n可直接点击'自动编排'执行")
+        except FileNotFoundError:
+            messagebox.showerror("错误", "未找到 missions.json 配置文件")
+        except Exception as e:
+            messagebox.showerror("错误", f"加载配置失败：{e}")
+
+    def _save_config(self):
+        """保存当前配置到missions.json"""
+        try:
+            config = {
+                "missions": [
+                    {
+                        "drone_id": drone_id,
+                        **mission
+                    }
+                    for drone_id, mission in self.missions.items()
+                ],
+                "dependencies": self.dependencies
+            }
+
+            with open("missions.json", "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+
+            self._log("配置已保存到 missions.json")
+            messagebox.showinfo("成功", "配置已保存到 missions.json")
+        except Exception as e:
+            messagebox.showerror("错误", f"保存配置失败：{e}")
+
     def _publish_mission(self, drone_id, mission=None):
+        # 检查MQTT连接状态
+        if not self.connected:
+            messagebox.showerror("错误", "MQTT未连接，无法发送任务\n请检查网络连接")
+            self._log("发送失败：MQTT未连接")
+            return
+
         if mission is None:
             try:
                 mission = {
@@ -355,8 +460,19 @@ class DroneControlApp:
             "stay_duration": mission["stay_duration"],
             "mode": "auto",
         }
-        self.mqtt_client.publish(f"dji/drone/{drone_id}/command", json.dumps(payload))
-        self._log(f"已发送任务 → {drone_id}  终点({payload['end_lat']}, {payload['end_lng']})")
+        result = self.mqtt_client.publish(f"dji/drone/{drone_id}/command", json.dumps(payload), qos=1)
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            self._log(f"✓ 已发送任务 → {drone_id}  终点({payload['end_lat']}, {payload['end_lng']})")
+            # 记录待确认的指令
+            current_status = self.drones.get(drone_id, {}).get("mission_status", "待命")
+            self.pending_commands[drone_id] = {
+                "time": time.time(),
+                "retry": 0,
+                "last_status": current_status
+            }
+        else:
+            self._log(f"✗ 发送失败 → {drone_id} (错误码: {result.rc})")
+            messagebox.showerror("发送失败", f"MQTT发送失败，错误码: {result.rc}")
 
     # ── 表格刷新 ───────────────────────────────────────
     def _refresh_table(self):
@@ -385,14 +501,25 @@ class DroneControlApp:
 
     def _check_and_trigger_dependents(self, completed_drone_id):
         """检查并触发依赖已完成飞机的其他飞机"""
+        self._log(f"[编排] 检查依赖 {completed_drone_id} 的飞机...")
+
         for drone_id, deps in self.dependencies.items():
             if completed_drone_id in deps:
+                self._log(f"[编排] {drone_id} 依赖 {completed_drone_id}")
                 # 检查该飞机的所有依赖是否都已完成
                 all_completed = all(d in self.completed for d in deps)
+                self._log(f"[编排] {drone_id} 的依赖: {deps}, 已完成: {[d for d in deps if d in self.completed]}")
+
                 if all_completed and drone_id not in self.completed:
-                    self._log(f"[编排] {drone_id} 的依赖已全部完成，开始执行")
+                    self._log(f"[编排] ✓ {drone_id} 的依赖已全部完成，开始执行")
                     if drone_id in self.missions:
                         self._publish_mission(drone_id, self.missions[drone_id])
+                    else:
+                        self._log(f"[编排] ✗ {drone_id} 没有预设任务")
+                elif drone_id in self.completed:
+                    self._log(f"[编排] {drone_id} 已完成，跳过")
+                else:
+                    self._log(f"[编排] {drone_id} 的依赖未全部完成，等待中")
 
     def _on_select(self, event):
         sel = self.tree.selection()
