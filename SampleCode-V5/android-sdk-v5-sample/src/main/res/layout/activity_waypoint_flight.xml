@@ -20,7 +20,43 @@
             android:textStyle="bold"
             android:gravity="center"
             android:layout_marginTop="20dp"
-            android:paddingBottom="16dp"/>
+            android:paddingBottom="8dp"/>
+
+        <!-- 设备ID卡片 -->
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            app:cardBackgroundColor="#E3F2FD">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="12dp"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="设备ID："
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#1565C0"/>
+
+                <TextView
+                    android:id="@+id/tv_drone_id"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="获取中..."
+                    android:textSize="14sp"
+                    android:textColor="#1565C0"
+                    android:fontFamily="monospace"/>
+
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
 
         <!-- Current Location Card -->
         <androidx.cardview.widget.CardView

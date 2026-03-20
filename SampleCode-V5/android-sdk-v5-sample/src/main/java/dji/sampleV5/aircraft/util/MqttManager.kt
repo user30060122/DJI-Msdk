@@ -51,11 +51,7 @@ object MqttManager {
                     override fun connectionLost(cause: Throwable?) {
                         Log.w(TAG, "MQTT连接断开: ${cause?.message}")
                         onConnectionChanged?.invoke(false)
-                        // 自动重连
-                        executor.execute {
-                            Thread.sleep(2000)
-                            reconnect()
-                        }
+                        // 依赖 isAutomaticReconnect=true 自动重连，不手动重连
                     }
 
                     override fun messageArrived(topic: String, message: MqttMessage) {

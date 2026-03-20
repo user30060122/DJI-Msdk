@@ -239,12 +239,16 @@ class DroneControlApp:
                     self._log(f"[确认] {drone_id} 指令已送达，状态: {status}")
                     del self.pending_commands[drone_id]
 
-            # 检测任务完成，触发依赖的飞机
-            if ("任务完成" in status or "降落完成" in status) and drone_id not in self.completed:
+            # 检测中途降落，等待2×停留时间后触发依赖飞机
+            if "电机停止，降落完成" in status and drone_id not in self.completed:
                 self.completed.add(drone_id)
-                self._log(f"[编排] ✓ {drone_id} 任务完成")
-                self._log(f"[编排] 当前已完成: {list(self.completed)}")
-                self._check_and_trigger_dependents(drone_id)
+                stay = self.missions.get(drone_id, {}).get("stay_duration", 5)
+                delay = stay * 2
+                self._log(f"[编排] {drone_id} 中途降落，{delay}秒后触发依赖飞机")
+                threading.Timer(
+                    delay,
+                    lambda d=drone_id: self.root.after(0, lambda: self._check_and_trigger_dependents(d))
+                ).start()
         except Exception as e:
             self._log(f"解析状态失败: {e}")
 
