@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.os.Bundle
-import android.widget.SeekBar
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -148,6 +147,22 @@ class WaypointFlightActivity : AppCompatActivity() {
             runOnUiThread {
                 ToastUtils.showToast("收到指令: $action")
                 when (action) {
+                    "sync_params" -> {
+                        val altitude = data.optDouble("altitude", 10.0)
+                        val speed = data.optDouble("speed", 2.0)
+                        val stayDuration = data.optInt("stay_duration", 5)
+                        val startLat = data.optDouble("start_lat", 0.0)
+                        val startLng = data.optDouble("start_lng", 0.0)
+                        val endLat = data.optDouble("end_lat", 0.0)
+                        val endLng = data.optDouble("end_lng", 0.0)
+
+                        waypointVM.flightAltitude.value = altitude
+                        waypointVM.flightSpeed.value = speed
+                        waypointVM.stayDuration.value = stayDuration
+                        if (startLat != 0.0) waypointVM.setStartPointFromCoords(startLat, startLng)
+                        if (endLat != 0.0) waypointVM.setEndPointFromCoords(endLat, endLng)
+                        ToastUtils.showToast("参数已同步：高度${altitude}m 速度${speed}m/s 停留${stayDuration}s")
+                    }
                     "start_mission" -> {
                         val startLat = data.optDouble("start_lat")
                         val startLng = data.optDouble("start_lng")
@@ -186,19 +201,25 @@ class WaypointFlightActivity : AppCompatActivity() {
             }
         }
 
-        // 每2秒上报一次飞机状态
+        // 每2秒上报一次飞机状态（含起终点坐标）
         statusReportJob = lifecycleScope.launch {
             while (true) {
                 delay(2000)
                 val loc = waypointVM.currentLocation.value
                 val status = waypointVM.missionStatus.value ?: "待命"
                 val isFlying = waypointVM.isFlying.value ?: false
+                val start = waypointVM.startPoint.value
+                val end = waypointVM.endPoint.value
                 MqttManager.publishStatus(
                     lat = loc?.latitude ?: 0.0,
                     lng = loc?.longitude ?: 0.0,
                     altitude = loc?.altitude ?: 0.0,
                     missionStatus = status,
-                    isFlying = isFlying
+                    isFlying = isFlying,
+                    startLat = start?.latitude ?: 0.0,
+                    startLng = start?.longitude ?: 0.0,
+                    endLat = end?.latitude ?: 0.0,
+                    endLng = end?.longitude ?: 0.0
                 )
             }
         }
@@ -252,61 +273,14 @@ class WaypointFlightActivity : AppCompatActivity() {
             }
         }
 
-        // Altitude SeekBar
-        binding.seekbarAltitude.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                val altitude = progress + 5.0 // 5-50 meters
-                waypointVM.flightAltitude.value = altitude
-                binding.tvAltitudeValue.text = "$altitude m"
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // Duration SeekBar
-        binding.seekbarDuration.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                waypointVM.stayDuration.value = progress
-                binding.tvDurationValue.text = "$progress s"
-            }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        // Flight Speed EditText
-        binding.etFlightSpeed.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus) {
-                val speedText = binding.etFlightSpeed.text.toString()
-                val speed = speedText.toDoubleOrNull()
-                if (speed != null && speed in 0.1..15.0) {
-                    waypointVM.flightSpeed.value = speed
-                } else {
-                    ToastUtils.showToast("速度必须在 0.1-15 m/s 之间")
-                    binding.etFlightSpeed.setText("2.0")
-                    waypointVM.flightSpeed.value = 2.0
-                }
-            }
-        }
+        // Altitude SeekBar 已移除，参数从电脑同步
 
         // Start Mission Button
         binding.btnStartMission.setOnClickListener {
-            // Validate speed before starting mission
-            val speedText = binding.etFlightSpeed.text.toString()
-            val speed = speedText.toDoubleOrNull()
-            if (speed == null || speed !in 0.1..15.0) {
-                ToastUtils.showToast("请输入有效的飞行速度 (0.1-15 m/s)")
-                return@setOnClickListener
-            }
-            waypointVM.flightSpeed.value = speed
-
             if (waypointVM.startPoint.value == null || waypointVM.endPoint.value == null) {
                 ToastUtils.showToast("请先设置起点和终点")
                 return@setOnClickListener
             }
-
-            // 显示模式选择对话框
             showModeSelectionDialog()
         }
 
@@ -362,21 +336,18 @@ class WaypointFlightActivity : AppCompatActivity() {
             binding.btnNextStep.isEnabled = canProceed
         }
 
-        // 监听高度变化（来自MQTT远程命令）
+        // 监听高度变化（从电脑同步）
         waypointVM.flightAltitude.observe(this) { altitude ->
-            val progress = (altitude - 5.0).toInt().coerceIn(0, 45)
-            binding.seekbarAltitude.progress = progress
             binding.tvAltitudeValue.text = "$altitude m"
         }
 
-        // 监听速度变化（来自MQTT远程命令）
+        // 监听速度变化（从电脑同步）
         waypointVM.flightSpeed.observe(this) { speed ->
-            binding.etFlightSpeed.setText(speed.toString())
+            binding.tvSpeedValue.text = "$speed m/s"
         }
 
-        // 监听停留时间变化（来自MQTT远程命令）
+        // 监听停留时间变化（从电脑同步）
         waypointVM.stayDuration.observe(this) { duration ->
-            binding.seekbarDuration.progress = duration
             binding.tvDurationValue.text = "$duration s"
         }
     }

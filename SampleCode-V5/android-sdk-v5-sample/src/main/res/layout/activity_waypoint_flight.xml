@@ -210,90 +210,72 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="飞行参数"
+                    android:text="飞行参数（从电脑同步）"
                     android:textSize="16sp"
                     android:textStyle="bold"
-                    android:paddingBottom="8dp"/>
-
-                <!-- Altitude Slider -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="飞行高度 (米)"
-                    android:textSize="14sp"/>
+                    android:paddingBottom="12dp"/>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <SeekBar
-                        android:id="@+id/seekbar_altitude"
+                    android:paddingBottom="8dp">
+                    <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:max="45"
-                        android:progress="5"/>
-
+                        android:text="飞行高度"
+                        android:textSize="14sp"
+                        android:textColor="#666666"/>
                     <TextView
                         android:id="@+id/tv_altitude_value"
-                        android:layout_width="60dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="10 m"
+                        android:text="-- m"
                         android:textSize="14sp"
-                        android:gravity="end"/>
+                        android:textStyle="bold"/>
                 </LinearLayout>
-
-                <!-- Stay Duration Slider -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="停留时间 (秒)"
-                    android:textSize="14sp"
-                    android:paddingTop="16dp"/>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <SeekBar
-                        android:id="@+id/seekbar_duration"
+                    android:paddingBottom="8dp">
+                    <TextView
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:max="60"
-                        android:progress="5"/>
-
-                    <TextView
-                        android:id="@+id/tv_duration_value"
-                        android:layout_width="60dp"
-                        android:layout_height="wrap_content"
-                        android:text="5 s"
+                        android:text="飞行速度"
                         android:textSize="14sp"
-                        android:gravity="end"/>
+                        android:textColor="#666666"/>
+                    <TextView
+                        android:id="@+id/tv_speed_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="-- m/s"
+                        android:textSize="14sp"
+                        android:textStyle="bold"/>
                 </LinearLayout>
 
-                <!-- Flight Speed Input -->
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="飞行速度 (米/秒)"
-                    android:textSize="14sp"
-                    android:paddingTop="16dp"/>
-
-                <EditText
-                    android:id="@+id/et_flight_speed"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="numberDecimal"
-                    android:text="2.0"
-                    android:hint="输入飞行速度 (0.1-15 m/s)"
-                    android:textSize="14sp"
-                    android:padding="8dp"
-                    android:background="@android:drawable/edit_text"/>
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="停留时间"
+                        android:textSize="14sp"
+                        android:textColor="#666666"/>
+                    <TextView
+                        android:id="@+id/tv_duration_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="-- s"
+                        android:textSize="14sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 

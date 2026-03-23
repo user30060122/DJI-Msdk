@@ -227,9 +227,17 @@ class DroneControlApp:
                 "altitude": data.get("altitude", 0),
                 "mission_status": status,
                 "is_flying": data.get("is_flying", False),
+                "start_lat": data.get("start_lat", 0),
+                "start_lng": data.get("start_lng", 0),
+                "end_lat": data.get("end_lat", 0),
+                "end_lng": data.get("end_lng", 0),
                 "last_seen": time.strftime("%H:%M:%S"),
             }
             self.root.after(0, self._refresh_table)
+
+            # 如果是当前选中的飞机，自动同步起终点到输入框
+            if drone_id == self.selected_drone.get():
+                self.root.after(0, lambda: self._sync_coords_from_drone(data))
             self._save_to_bmob(drone_id, data)
 
             # 检查待确认指令：如果状态变化了，说明指令已送达
@@ -273,7 +281,21 @@ class DroneControlApp:
             self.missions[drone_id] = mission
             self._log(f"已保存任务参数 → {drone_id}")
             self._refresh_table()
-            messagebox.showinfo("成功", f"任务已保存到 {drone_id}\n点击'执行任务'开始飞行")
+
+            # 立即推送飞行参数到手机
+            if self.connected:
+                payload = {
+                    "action": "sync_params",
+                    "altitude": mission["altitude"],
+                    "speed": mission["speed"],
+                    "stay_duration": mission["stay_duration"],
+                    "start_lat": mission["start_lat"],
+                    "start_lng": mission["start_lng"],
+                    "end_lat": mission["end_lat"],
+                    "end_lng": mission["end_lng"],
+                }
+                self.mqtt_client.publish(f"dji/drone/{drone_id}/command", json.dumps(payload), qos=1)
+                self._log(f"已同步飞行参数到 {drone_id}（高度:{mission['altitude']}m 速度:{mission['speed']}m/s 停留:{mission['stay_duration']}s）")
         except ValueError:
             messagebox.showerror("错误", "请检查坐标和参数格式是否正确")
 
@@ -502,6 +524,26 @@ class DroneControlApp:
                 dep_text,
                 d["last_seen"],
             ))
+
+    def _sync_coords_from_drone(self, data):
+        """将飞机上报的起终点坐标同步到输入框"""
+        start_lat = data.get("start_lat", 0)
+        start_lng = data.get("start_lng", 0)
+        end_lat = data.get("end_lat", 0)
+        end_lng = data.get("end_lng", 0)
+
+        # 只有坐标不为0才同步
+        if start_lat != 0 and start_lng != 0:
+            self.entries["start_lat"].delete(0, tk.END)
+            self.entries["start_lat"].insert(0, f"{start_lat:.6f}")
+            self.entries["start_lng"].delete(0, tk.END)
+            self.entries["start_lng"].insert(0, f"{start_lng:.6f}")
+
+        if end_lat != 0 and end_lng != 0:
+            self.entries["end_lat"].delete(0, tk.END)
+            self.entries["end_lat"].insert(0, f"{end_lat:.6f}")
+            self.entries["end_lng"].delete(0, tk.END)
+            self.entries["end_lng"].insert(0, f"{end_lng:.6f}")
 
     def _check_and_trigger_dependents(self, completed_drone_id):
         """检查并触发依赖已完成飞机的其他飞机"""

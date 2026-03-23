@@ -104,7 +104,9 @@ object MqttManager {
 
     fun publishStatus(
         lat: Double, lng: Double, altitude: Double,
-        missionStatus: String, isFlying: Boolean
+        missionStatus: String, isFlying: Boolean,
+        startLat: Double = 0.0, startLng: Double = 0.0,
+        endLat: Double = 0.0, endLng: Double = 0.0
     ) {
         executor.execute {
             try {
@@ -115,6 +117,10 @@ object MqttManager {
                     put("altitude", altitude)
                     put("mission_status", missionStatus)
                     put("is_flying", isFlying)
+                    put("start_lat", startLat)
+                    put("start_lng", startLng)
+                    put("end_lat", endLat)
+                    put("end_lng", endLng)
                     put("timestamp", System.currentTimeMillis())
                 }
                 val topic = "dji/drone/$droneId/status"
