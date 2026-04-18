@@ -190,6 +190,29 @@ class WaypointFlightActivity : AppCompatActivity() {
                         waypointVM.stopMission()
                         ToastUtils.showToast("收到远程停止指令")
                     }
+                    "pickup_mission" -> {
+                        // 取餐任务：飞机场 → 商家取餐 → 飞回机场
+                        val pickupLat  = data.optDouble("pickup_lat")
+                        val pickupLng  = data.optDouble("pickup_lng")
+                        val homeLat    = data.optDouble("home_lat")
+                        val homeLng    = data.optDouble("home_lng")
+                        val altitude   = data.optDouble("altitude", 10.0)
+                        val speed      = data.optDouble("speed", 2.0)
+                        val stayDur    = data.optInt("stay_duration", 5)
+
+                        waypointVM.startPickupMission(
+                            pickupLat  = pickupLat,
+                            pickupLng  = pickupLng,
+                            homeLat    = homeLat,
+                            homeLng    = homeLng,
+                            altitude   = altitude,
+                            speed      = speed,
+                            stayDur    = stayDur,
+                            takeOffCallback = { cb -> aircraftControlVM.startTakeOff(cb) },
+                            landingCallback = { cb -> aircraftControlVM.startLanding(cb) }
+                        )
+                        ToastUtils.showToast("取餐任务开始：飞往商家取餐")
+                    }
                 }
             }
         }

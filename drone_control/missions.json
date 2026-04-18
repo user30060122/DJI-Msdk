@@ -2,28 +2,28 @@
   "missions": [
     {
       "drone_id": "5fbac2aa892d736a",
-      "start_lat": 43.821862,
-      "start_lng": 125.268909,
-      "end_lat": 43.821988,
-      "end_lng": 125.268863,
-      "altitude": 15.0,
+      "start_lat": 43.821949,
+      "start_lng": 125.268988,
+      "end_lat": 43.821927,
+      "end_lng": 125.268797,
+      "altitude": 10.0,
       "speed": 2.0,
       "stay_duration": 5
     },
     {
       "drone_id": "e766d60a350cde61",
-      "start_lat": 43.821776,
-      "start_lng": 125.268892,
-      "end_lat": 43.821859,
-      "end_lng": 125.268925,
-      "altitude": 10.0,
+      "start_lat": 43.82192,
+      "start_lng": 125.268809,
+      "end_lat": 43.821822,
+      "end_lng": 125.268665,
+      "altitude": 7.0,
       "speed": 2.0,
       "stay_duration": 5
     }
   ],
   "dependencies": {
-    "5fbac2aa892d736a": [
-      "e766d60a350cde61"
+    "e766d60a350cde61": [
+      "5fbac2aa892d736a"
     ]
   }
 }

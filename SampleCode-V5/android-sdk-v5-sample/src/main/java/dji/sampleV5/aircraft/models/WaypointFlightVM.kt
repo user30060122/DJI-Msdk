@@ -218,6 +218,96 @@ class WaypointFlightVM : ViewModel() {
         }
     }
 
+    /**
+     * 取餐任务：飞机从机场出发 → 飞到商家（pickup点）→ 停留 → 飞回机场（home点）→ 降落
+     * 完成后 missionStatus 会发出 "电机停止，降落完成"，PC端监听到后自动触发接力链
+     */
+    fun startPickupMission(
+        pickupLat: Double, pickupLng: Double,
+        homeLat: Double, homeLng: Double,
+        altitude: Double, speed: Double, stayDur: Int,
+        takeOffCallback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit,
+        landingCallback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit
+    ) {
+        this.takeOffCallback = takeOffCallback
+        this.landingCallback = landingCallback
+        flightAltitude.value = altitude
+        flightSpeed.value = speed
+        stayDuration.value = stayDur
+
+        val homePoint   = GPSPoint(homeLat,    homeLng,    0.0)
+        val pickupPoint = GPSPoint(pickupLat,  pickupLng,  0.0)
+
+        // 把起终点也同步到 LiveData，方便 UI 显示
+        startPoint.value = homePoint
+        endPoint.value   = pickupPoint
+
+        isFlying.value = true
+        canProceed.value = false
+
+        missionJob = viewModelScope.launch {
+            try {
+                // ── 去程：机场 → 商家 ──────────────────────────
+                missionStatus.value = "[取餐] 步骤1: 起飞..."
+                takeoff(takeOffCallback)
+                delay(5000)
+
+                missionStatus.value = "[取餐] 步骤2: 启用虚拟摇杆..."
+                enableVirtualStick()
+                delay(1000)
+
+                missionStatus.value = "[取餐] 步骤3: 爬升到 ${altitude}m..."
+                climbToAltitude(altitude)
+
+                missionStatus.value = "[取餐] 步骤4: 机头转向商家..."
+                val bearingToPickup = calculateBearing(homePoint, pickupPoint)
+                rotateToHeading(bearingToPickup)
+
+                missionStatus.value = "[取餐] 步骤5: 飞往商家..."
+                flyToPoint(homePoint, pickupPoint)
+
+                missionStatus.value = "[取餐] 步骤6: 到达商家，降落取餐..."
+                land(landingCallback)
+
+                val dur = stayDuration.value ?: 5
+                missionStatus.value = "[取餐] 步骤7: 取餐停留 ${dur} 秒..."
+                delay(dur * 1000L)
+
+                // ── 返程：商家 → 机场 ──────────────────────────
+                missionStatus.value = "[取餐] 步骤8: 起飞返回机场..."
+                takeoff(takeOffCallback)
+                delay(5000)
+
+                missionStatus.value = "[取餐] 步骤9: 启用虚拟摇杆..."
+                enableVirtualStick()
+                delay(1000)
+
+                missionStatus.value = "[取餐] 步骤10: 爬升到 ${altitude}m..."
+                climbToAltitude(altitude)
+
+                missionStatus.value = "[取餐] 步骤11: 机头转向机场..."
+                val bearingToHome = calculateBearing(pickupPoint, homePoint)
+                rotateToHeading(bearingToHome)
+
+                missionStatus.value = "[取餐] 步骤12: 飞回机场..."
+                flyToPoint(pickupPoint, homePoint)
+
+                missionStatus.value = "[取餐] 步骤13: 到达机场，降落..."
+                land(landingCallback)
+
+                // 关键：降落完成后 land() 内部会发出 "电机停止，降落完成"
+                // PC端监听该状态后自动触发接力链，无需额外处理
+                disableVirtualStick()
+                isFlying.value = false
+
+            } catch (e: Exception) {
+                missionStatus.value = "[取餐] 任务失败: ${e.message}"
+                isFlying.value = false
+                disableVirtualStick()
+            }
+        }
+    }
+
     private fun executeAutoMission() {
         missionJob = viewModelScope.launch {
             try {
