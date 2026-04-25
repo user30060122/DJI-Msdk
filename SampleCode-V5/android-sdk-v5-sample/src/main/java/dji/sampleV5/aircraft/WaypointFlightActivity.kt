@@ -180,7 +180,8 @@ class WaypointFlightActivity : AppCompatActivity() {
                         waypointVM.stayDuration.value = stayDuration
 
                         waypointVM.startMission(
-                            autoMode = (mode == "auto"),
+                            autoMode = true,
+                            oneWay = (mode == "one_way"),
                             takeOffCallback = { cb -> aircraftControlVM.startTakeOff(cb) },
                             landingCallback = { cb -> aircraftControlVM.startLanding(cb) }
                         )

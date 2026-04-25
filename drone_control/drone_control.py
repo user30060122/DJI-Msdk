@@ -98,6 +98,7 @@ class AirportManagerDialog:
 
         self._build_ui()
         self._refresh_list()
+        self.win.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ── UI ──────────────────────────────────────────
     def _build_ui(self):
@@ -280,6 +281,11 @@ class AirportManagerDialog:
         except Exception as e:
             messagebox.showerror("错误", f"保存失败：{e}", parent=self.win)
 
+    def _on_close(self):
+        if messagebox.askyesno("保存确认", "是否将机场数据保存到文件？\n（不保存则本次修改重启后丢失）", parent=self.win):
+            self._save_airports()
+        self.win.destroy()
+
 
 # ══════════════════════════════════════════════════════
 #  配送任务规划弹窗
@@ -361,10 +367,29 @@ class DeliveryPlannerDialog:
             except Exception as ex:
                 messagebox.showwarning("提示", f"加载失败：{ex}", parent=self.win)
 
+        def save_coords():
+            try:
+                c = {
+                    "merchant_lat": float(self.e_m_lat.get()),
+                    "merchant_lng": float(self.e_m_lng.get()),
+                    "user_lat":     float(self.e_u_lat.get()),
+                    "user_lng":     float(self.e_u_lng.get()),
+                }
+                with open("delivery_coords.json", "w", encoding="utf-8") as f:
+                    json.dump(c, f, indent=2, ensure_ascii=False)
+                messagebox.showinfo("成功", "坐标已保存到 delivery_coords.json", parent=self.win)
+            except ValueError:
+                messagebox.showerror("错误", "请先填写有效的坐标数值", parent=self.win)
+            except Exception as ex:
+                messagebox.showerror("错误", f"保存失败：{ex}", parent=self.win)
+
         r3 = row(coord_frame)
         tk.Button(r3, text="📂 加载 delivery_coords.json", bg="#fab387", fg="#1e1e2e",
                   font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=12,
                   command=load_coords).pack(side=tk.LEFT, padx=4)
+        tk.Button(r3, text="💾 保存坐标", bg="#94e2d5", fg="#1e1e2e",
+                  font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=12,
+                  command=save_coords).pack(side=tk.LEFT, padx=4)
 
         # ── 飞行参数 ──
         param_frame = section("飞行参数（所有段共用）")
@@ -570,7 +595,6 @@ class DeliveryPlannerDialog:
 
         prev_drone = None
         for i, (relay_drone, src_ap, dst_ap) in enumerate(relay_missions):
-            # 起点=本机场坐标，终点=下一机场坐标
             app.missions[relay_drone] = {
                 "start_lat":    src_ap["lat"],
                 "start_lng":    src_ap["lng"],
@@ -583,6 +607,22 @@ class DeliveryPlannerDialog:
             if prev_drone is not None:
                 app.dependencies[relay_drone] = [prev_drone]
             prev_drone = relay_drone
+
+        # 最终送达：终点机场的飞机 → 用户位置（往返）
+        final_ap = airports[path[-1]]
+        final_drone = random.choice(final_ap["drone_ids"])
+        app.missions[final_drone] = {
+            "start_lat":    final_ap["lat"],
+            "start_lng":    final_ap["lng"],
+            "end_lat":      u_lat,
+            "end_lng":      u_lng,
+            "altitude":     alt,
+            "speed":        spd,
+            "stay_duration": stay,
+        }
+        if prev_drone is not None:
+            app.dependencies[final_drone] = [prev_drone]
+        prev_drone = final_drone
 
         # 刷新主界面表格
         app.root.after(0, app._refresh_table)
@@ -774,12 +814,11 @@ class DroneControlApp:
                       font=("微软雅黑", 10, "bold"), relief=tk.FLAT, padx=16,
                       command=cmd).pack(side=tk.LEFT, padx=4)
 
-        mkbtn(ctrl_row, "⬛ 停止任务",  "#f38ba8", self._stop_mission)
-        mkbtn(ctrl_row, "🚀 自动编排",  "#89b4fa", self._auto_execute)
-        mkbtn(ctrl_row, "📂 加载配置",  "#fab387", self._load_config)
-        mkbtn(ctrl_row, "💾 保存配置",  "#94e2d5", self._save_config)
         mkbtn(ctrl_row, "✈ 机场管理",  "#cba6f7", self._open_airport_manager)
         mkbtn(ctrl_row, "🛵 规划配送",  "#f38ba8", self._open_delivery_planner)
+        mkbtn(ctrl_row, "⬛ 停止任务",  "#f38ba8", self._stop_mission)
+        mkbtn(ctrl_row, "📂 加载配置",  "#fab387", self._load_config)
+        mkbtn(ctrl_row, "💾 保存配置",  "#94e2d5", self._save_config)
 
         # 日志
         log_frame = ttk.Frame(self.root)
@@ -910,7 +949,11 @@ class DroneControlApp:
 
             # 检测降落完成
             if "电机停止，降落完成" in status and drone_id not in self.completed:
-                self.completed.add(drone_id)
+                # 指令刚发出还在待确认期间，跳过（防止旧状态上报误触发）
+                if drone_id in self.pending_commands:
+                    self._log(f"[忽略] {drone_id} 指令待确认中，跳过旧落地状态")
+                else:
+                    self.completed.add(drone_id)
 
                 # 取餐任务完成检测（优先于接力链）
                 if drone_id in self._pickup_watchers:
@@ -935,13 +978,20 @@ class DroneControlApp:
 
     # ── 指令发送 ───────────────────────────────────────
     def _stop_mission(self):
-        drone_id = self.selected_drone.get()
-        if drone_id == "(未选择)":
-            messagebox.showwarning("提示", "请先在列表中选择一台飞机")
+        if not self.drones:
+            messagebox.showwarning("提示", "当前没有已连接的飞机")
             return
         payload = json.dumps({"action": "stop_mission"})
-        self.mqtt_client.publish(f"dji/drone/{drone_id}/command", payload)
-        self._log(f"已发送停止指令 → {drone_id}")
+        for drone_id in self.drones:
+            self.mqtt_client.publish(f"dji/drone/{drone_id}/command", payload, qos=1)
+            self._log(f"[紧急停止] 已发送停止指令 → {drone_id}")
+        self.missions.clear()
+        self.dependencies.clear()
+        self.completed.clear()
+        self.pending_commands.clear()
+        self._pickup_watchers.clear()
+        self._refresh_table()
+        self._log(f"[紧急停止] 已广播停止指令至全部 {len(self.drones)} 架飞机，任务状态已清空")
 
     def _auto_execute(self):
         """自动编排执行 - 按依赖关系顺序执行"""
@@ -949,12 +999,13 @@ class DroneControlApp:
             messagebox.showwarning("提示", "没有飞机设置了任务")
             return
 
-        self.completed.clear()
         self._log("开始自动编排执行...")
 
-        # 找出无依赖的飞机，立即执行
+        # 只清除将要立即起飞的飞机的完成状态，不能全清
+        # 全清会导致旧的"电机停止，降落完成"状态上报重复触发依赖链
         for drone_id in self.missions:
             if drone_id not in self.dependencies or not self.dependencies[drone_id]:
+                self.completed.discard(drone_id)
                 self._publish_mission(drone_id, self.missions[drone_id])
                 self._log(f"[编排] {drone_id} 无依赖，立即执行")
 
@@ -1028,7 +1079,7 @@ class DroneControlApp:
             "altitude": mission["altitude"],
             "speed": mission["speed"],
             "stay_duration": mission["stay_duration"],
-            "mode": "auto",
+            "mode": mission.get("mode", "auto"),
         }
         result = self.mqtt_client.publish(f"dji/drone/{drone_id}/command", json.dumps(payload), qos=1)
         if result.rc == mqtt.MQTT_ERR_SUCCESS:

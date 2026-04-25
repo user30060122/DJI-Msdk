@@ -5,6 +5,7 @@ import android.provider.Settings
 import android.util.Log
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
+import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.json.JSONObject
 import java.util.concurrent.Executors
 
@@ -47,11 +48,16 @@ object MqttManager {
                     isAutomaticReconnect = true
                 }
 
-                client?.setCallback(object : MqttCallback {
+                client?.setCallback(object : MqttCallbackExtended {
+                    override fun connectComplete(reconnect: Boolean, serverURI: String) {
+                        client?.subscribe("dji/drone/$droneId/command", 1)
+                        Log.i(TAG, "MQTT${if (reconnect) "重连" else "连接"}成功，已订阅指令 topic")
+                        onConnectionChanged?.invoke(true)
+                    }
+
                     override fun connectionLost(cause: Throwable?) {
                         Log.w(TAG, "MQTT连接断开: ${cause?.message}")
                         onConnectionChanged?.invoke(false)
-                        // 依赖 isAutomaticReconnect=true 自动重连，不手动重连
                     }
 
                     override fun messageArrived(topic: String, message: MqttMessage) {
@@ -62,9 +68,7 @@ object MqttManager {
                 })
 
                 client?.connect(options)
-                client?.subscribe("dji/drone/$droneId/command", 1)
-                Log.i(TAG, "MQTT连接成功, droneId=$droneId")
-                onConnectionChanged?.invoke(true)
+                // 首次连接订阅由 connectComplete 回调处理
 
             } catch (e: Exception) {
                 Log.e(TAG, "MQTT连接失败: ${e.message}")

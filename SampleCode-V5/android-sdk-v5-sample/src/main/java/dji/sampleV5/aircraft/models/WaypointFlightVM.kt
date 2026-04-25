@@ -188,6 +188,7 @@ class WaypointFlightVM : ViewModel() {
 
     fun startMission(
         autoMode: Boolean,
+        oneWay: Boolean = false,
         takeOffCallback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit,
         landingCallback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit
     ) {
@@ -207,12 +208,10 @@ class WaypointFlightVM : ViewModel() {
         isFlying.value = true
 
         if (autoMode) {
-            // 全自主执行模式
             canProceed.value = false
             missionStatus.value = "全自主模式：任务开始执行..."
-            executeAutoMission()
+            executeAutoMission(oneWay)
         } else {
-            // 分步执行模式
             canProceed.value = true
             missionStatus.value = "分步模式：任务已准备，点击下一步开始"
         }
@@ -267,7 +266,7 @@ class WaypointFlightVM : ViewModel() {
                 flyToPoint(homePoint, pickupPoint)
 
                 missionStatus.value = "[取餐] 步骤6: 到达商家，降落取餐..."
-                land(landingCallback)
+                land(landingCallback, "取餐中，等待返航")  // 商家落地不触发PC接力链
 
                 val dur = stayDuration.value ?: 5
                 missionStatus.value = "[取餐] 步骤7: 取餐停留 ${dur} 秒..."
@@ -308,74 +307,62 @@ class WaypointFlightVM : ViewModel() {
         }
     }
 
-    private fun executeAutoMission() {
+    private fun executeAutoMission(oneWay: Boolean = false) {
         missionJob = viewModelScope.launch {
             try {
                 val start = startPoint.value!!
                 val end = endPoint.value!!
 
-                // 步骤1: 起飞（起飞时不启用虚拟摇杆）
-                missionStatus.value = "步骤1/12: 起飞中..."
+                missionStatus.value = "步骤1: 起飞中..."
                 takeoff(takeOffCallback)
                 delay(5000)
 
-                // 步骤2: 启用虚拟摇杆
-                missionStatus.value = "步骤2/12: 启用虚拟摇杆..."
+                missionStatus.value = "步骤2: 启用虚拟摇杆..."
                 enableVirtualStick()
                 delay(1000)
 
-                // 步骤3: 爬升
-                missionStatus.value = "步骤3/12: 爬升到 ${flightAltitude.value}m..."
+                missionStatus.value = "步骤3: 爬升到 ${flightAltitude.value}m..."
                 climbToAltitude(flightAltitude.value ?: 10.0)
 
-                // 步骤4: 转向终点
-                missionStatus.value = "步骤4/12: 机头转向终点..."
+                missionStatus.value = "步骤4: 机头转向终点..."
                 val bearing1 = calculateBearing(start, end)
                 rotateToHeading(bearing1)
 
-                // 步骤5: 飞往终点
-                missionStatus.value = "步骤5/12: 飞往终点..."
+                missionStatus.value = "步骤5: 飞往终点..."
                 flyToPoint(start, end)
 
-                // 步骤6: 降落
-                missionStatus.value = "步骤6/12: 在终点降落..."
+                missionStatus.value = "步骤6: 在终点降落..."
                 land(landingCallback)
 
-                // 步骤8: 停留
-                val duration = stayDuration.value ?: 5
-                missionStatus.value = "步骤8/12: 停留 ${duration} 秒..."
-                delay(duration * 1000L)
+                if (!oneWay) {
+                    val duration = stayDuration.value ?: 5
+                    missionStatus.value = "步骤7: 停留 ${duration} 秒..."
+                    delay(duration * 1000L)
 
-                // 步骤9: 起飞返回
-                missionStatus.value = "步骤9/12: 起飞返回..."
-                takeoff(takeOffCallback)
-                delay(5000)
+                    missionStatus.value = "步骤8: 起飞返回..."
+                    takeoff(takeOffCallback)
+                    delay(5000)
 
-                // 步骤10: 启用虚拟摇杆
-                missionStatus.value = "步骤10/12: 启用虚拟摇杆..."
-                enableVirtualStick()
-                delay(1000)
+                    missionStatus.value = "步骤9: 启用虚拟摇杆..."
+                    enableVirtualStick()
+                    delay(1000)
 
-                // 步骤11: 爬升
-                missionStatus.value = "步骤11/12: 爬升到 ${flightAltitude.value}m..."
-                climbToAltitude(flightAltitude.value ?: 10.0)
+                    missionStatus.value = "步骤10: 爬升到 ${flightAltitude.value}m..."
+                    climbToAltitude(flightAltitude.value ?: 10.0)
 
-                // 步骤12: 转向起点
-                missionStatus.value = "步骤12/12: 机头转向起点..."
-                val bearing2 = calculateBearing(end, start)
-                rotateToHeading(bearing2)
+                    missionStatus.value = "步骤11: 机头转向起点..."
+                    val bearing2 = calculateBearing(end, start)
+                    rotateToHeading(bearing2)
 
-                // 步骤13: 返回起点
-                missionStatus.value = "步骤13/12: 返回起点..."
-                flyToPoint(end, start)
+                    missionStatus.value = "步骤12: 返回起点..."
+                    flyToPoint(end, start)
 
-                // 步骤14: 降落
-                missionStatus.value = "步骤14/12: 在起点降落..."
-                land(landingCallback)
+                    missionStatus.value = "步骤13: 在起点降落..."
+                    land(landingCallback)
+                }
 
-                // 完成
                 disableVirtualStick()
-                missionStatus.value = "任务完成！"
+                missionStatus.value = "电机停止，降落完成"
                 isFlying.value = false
             } catch (e: Exception) {
                 missionStatus.value = "任务失败: ${e.message}"
@@ -547,7 +534,10 @@ class WaypointFlightVM : ViewModel() {
         })
     }
 
-    private suspend fun land(callback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit) {
+    private suspend fun land(
+        callback: (CommonCallbacks.CompletionCallbackWithParam<EmptyMsg>) -> Unit,
+        completionMessage: String = "电机停止，降落完成"
+    ) {
         // 关闭降落保护，确保能降到地面
         missionStatus.postValue("准备降落：关闭降落保护...")
 
@@ -633,7 +623,7 @@ class WaypointFlightVM : ViewModel() {
             if (!areMotorsOn) {
                 motorOffCount++
                 if (motorOffCount >= 2) {
-                    missionStatus.postValue("电机停止，降落完成")
+                    missionStatus.postValue(completionMessage)
                     break
                 }
             } else {
